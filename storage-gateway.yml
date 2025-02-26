@@ -1,0 +1,30 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: "CloudFormation template for Storage Gateway with S3"
+
+Resources:
+  MyS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: 
+        Fn::Sub: "my-storage-gateway-bucket-${AWS::AccountId}-${AWS::Region}"
+    DeletionPolicy: Retain
+
+  StorageGatewayInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t2.micro
+      ImageId: ami-0c55b159cbfafe1f0  # Replace with correct AMI ID
+      Tags:
+        - Key: Name
+          Value: StorageGatewayInstance
+
+Outputs:
+  S3BucketName:
+    Description: "S3 Bucket Name for Storage Gateway"
+    Value: 
+      Ref: MyS3Bucket
+
+  StorageGatewayInstanceId:
+    Description: "EC2 Instance ID for Storage Gateway"
+    Value: 
+      Ref: StorageGatewayInstance
