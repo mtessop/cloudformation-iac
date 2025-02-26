@@ -1,0 +1,53 @@
+name: "Terraform + CloudFormation Deployment"
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  cloudformation:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: "us-east-1"
+
+      - name: Check if CloudFormation Stack Exists
+        id: check_stack
+        continue-on-error: true
+        run: |
+          STATUS=$(aws cloudformation describe-stacks --stack-name StorageGatewayStack --query "Stacks[0].StackStatus" --output text || echo "NOT_FOUND")
+          echo "Stack Status: $STATUS"
+          echo "STATUS=$STATUS" >> $GITHUB_ENV
+
+      - name: Delete CloudFormation Stack if in ROLLBACK_COMPLETE
+        if: env.STATUS == 'ROLLBACK_COMPLETE' || env.STATUS == 'CREATE_FAILED'
+        run: |
+          echo "Stack is in $STATUS state. Deleting..."
+          aws cloudformation delete-stack --stack-name StorageGatewayStack
+          aws cloudformation wait stack-delete-complete --stack-name StorageGatewayStack
+          echo "Stack deleted successfully."
+
+      - name: Deploy CloudFormation
+        run: |
+          echo "Deploying CloudFormation stack..."
+          aws cloudformation deploy \
+            --stack-name StorageGatewayStack \
+            --template-file cloudformation/storage-gateway.yml \
+            --capabilities CAPABILITY_NAMED_IAM
+          echo "Deployment complete."
+
+      - name: Fetch CloudFormation Stack Events (if failed)
+        if: failure()
+        run: aws cloudformation describe-stack-events --stack-name StorageGatewayStack
+
+      - name: Verify CloudFormation Stack
+        run: aws cloudformation describe-stacks --stack-name StorageGatewayStack
